@@ -1,0 +1,479 @@
+-- Live console log buffer
+local logBuffer = {}
+local originalPrint = print
+
+print = function(...)
+    local args = {...}
+    local msg = ""
+    for i, v in ipairs(args) do
+        msg = msg .. tostring(v) .. (i < #args and "\t" or "")
+    end
+    table.insert(logBuffer, msg)
+    if #logBuffer > 150 then
+        table.remove(logBuffer, 1)
+    end
+    originalPrint(msg)
+end
+
+-- Automatic Self-Updater from GitHub Repo via HTTP
+CreateThread(function()
+    if not Config.GitHub or not Config.GitHub.Owner or not Config.GitHub.Repo then
+        print("^3[kp-web-support] GitHub configuration not complete. Skipping auto-updater.^0")
+        return
+    end
+
+    print('^2[kp-web-support] Checking for updates from GitHub repository...^0')
+    local owner = Config.GitHub.Owner
+    local repo = Config.GitHub.Repo
+    local branch = Config.GitHub.Branch or "main"
+
+    local files = { "server.lua", "config.lua", "fxmanifest.lua" }
+
+    for _, filename in ipairs(files) do
+        -- GitHub raw public file download URL
+        local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/kp-web-support/%s", owner, repo, branch, filename)
+        
+        PerformHttpRequest(url, function(statusCode, responseText, headers)
+            if statusCode == 200 and responseText and responseText ~= "" then
+                local localContent = LoadResourceFile(GetCurrentResourceName(), filename)
+                -- If remote content differs from local, save it to disk
+                if localContent ~= responseText then
+                    SaveResourceFile(GetCurrentResourceName(), filename, responseText, -1)
+                    print(string.format("^2[kp-web-support] Updated file automatically: %s. Restart resource to apply updates.^0", filename))
+                end
+            elseif statusCode == 404 then
+                if Config.Debug then
+                    print(string.format("^3[kp-web-support] File %s not found in repository path.^0", filename))
+                end
+            else
+                print(string.format("^1[kp-web-support] Failed to download %s (Status Code: %s)^0", filename, tostring(statusCode)))
+            end
+        end, "GET", "", {})
+    end
+end)
+
+-- Verify dependencies
+if GetResourceState('qbx_core') == 'missing' and GetResourceState('qb-core') == 'missing' then
+    print('^1[kp-web-support] Warning: Neither qbx_core nor qb-core was found. Some framework actions may fail.^0')
+end
+
+-- HTTP Handler
+SetHttpHandler(function(req, res)
+    local path = req.path
+    local method = req.method
+    local headers = req.headers
+
+    if Config.Debug then
+        print(string.format('^3[kp-web-support] Incoming request: %s %s^0', method, path))
+    end
+
+    -- Verify API Key
+    local apiKey = headers["X-Bridge-API-Key"] or headers["x-bridge-api-key"]
+    if apiKey ~= Config.ApiKey then
+        res.writeHead(403, {["Content-Type"] = "application/json"})
+        res.send(json.encode({ error = "Unauthorized: Invalid API Key" }))
+        return
+    end
+
+    req.setDataHandler(function(body)
+        local data = {}
+        if body and body ~= "" then
+            local status, result = pcall(json.decode, body)
+            if status then
+                data = result
+            else
+                print('^1[kp-web-support] Failed to decode JSON body^0')
+            end
+        end
+
+        -- Endpoint: /player/kick
+        if path == "/player/kick" and method == "POST" then
+            local targetSrc = tonumber(data.source)
+            local reason = data.reason or "Kicked via Staff Control Panel"
+            if targetSrc and GetPlayerName(targetSrc) then
+                DropPlayer(targetSrc, reason)
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Player successfully kicked" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Target player not online or invalid source" }))
+            end
+
+        -- Endpoint: /player/revive
+        elseif path == "/player/revive" and method == "POST" then
+            local targetSrc = tonumber(data.source)
+            if targetSrc and GetPlayerName(targetSrc) then
+                -- Try reviving through Qbox or fallback events
+                TriggerClientEvent("hospital:client:Revive", targetSrc)
+                TriggerEvent("qbx_medical:server:revive", targetSrc) -- Qbox core revive event support
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Revive command dispatched" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Target player offline or invalid source" }))
+            end
+
+        -- Endpoint: /player/give-money
+        elseif path == "/player/give-money" and method == "POST" then
+            local citizenId = data.citizenId
+            local amount = tonumber(data.amount)
+            local moneyType = data.moneyType or "bank"
+            
+            if not citizenId or not amount then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing citizenId or amount parameters" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Framework not initialized"
+
+            -- Qbox Framework integration check
+            if GetResourceState('qbx_core') == 'started' then
+                local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.AddMoney(moneyType, amount, "Staff Dashboard adjustment")
+                else
+                    -- Handle offline Qbox players (directly update database or return status)
+                    errMsg = "Player offline, offline adjustments require database integration"
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.AddMoney(moneyType, amount, "Staff Dashboard adjustment")
+                else
+                    errMsg = "Player offline"
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Successfully added money to character" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /player/set-job
+        elseif path == "/player/set-job" and method == "POST" then
+            local citizenId = data.citizenId
+            local jobName = data.jobName
+            local jobGrade = tonumber(data.jobGrade) or 0
+
+            if not citizenId or not jobName then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing citizenId or jobName parameters" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Framework not initialized"
+
+            if GetResourceState('qbx_core') == 'started' then
+                local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.SetJob(jobName, jobGrade)
+                else
+                    errMsg = "Player offline"
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.SetJob(jobName, jobGrade)
+                else
+                    errMsg = "Player offline"
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Job changed successfully" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /player/set-gang
+        elseif path == "/player/set-gang" and method == "POST" then
+            local citizenId = data.citizenId
+            local gangName = data.gangName
+            local gangGrade = tonumber(data.gangGrade) or 0
+
+            if not citizenId or not gangName then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing citizenId or gangName parameters" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Framework not initialized"
+
+            if GetResourceState('qbx_core') == 'started' then
+                local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.SetGang(gangName, gangGrade)
+                else
+                    errMsg = "Player offline"
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                if player then
+                    success = player.Functions.SetGang(gangName, gangGrade)
+                else
+                    errMsg = "Player offline"
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Gang faction changed successfully" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /player/change-name
+        elseif path == "/player/change-name" and method == "POST" then
+            local citizenId = data.citizenId
+            local firstname = data.firstname
+            local lastname = data.lastname
+
+            if not citizenId or not firstname or not lastname then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing citizenId, firstname, or lastname parameters" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Player offline"
+
+            if GetResourceState('qbx_core') == 'started' then
+                local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                if player then
+                    local charinfo = player.PlayerData.charinfo
+                    charinfo.firstname = firstname
+                    charinfo.lastname = lastname
+                    player.Functions.SetPlayerData("charinfo", charinfo)
+                    success = true
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                if player then
+                    local charinfo = player.PlayerData.charinfo
+                    charinfo.firstname = firstname
+                    charinfo.lastname = lastname
+                    player.Functions.SetPlayerData("charinfo", charinfo)
+                    success = true
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Character name updated successfully" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /player/teleport
+        elseif path == "/player/teleport" and method == "POST" then
+            local targetSrc = tonumber(data.source)
+            local citizenId = data.citizenId
+            local targetType = data.targetType
+            
+            if not targetSrc and citizenId then
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                end
+            end
+
+            if not targetSrc or not GetPlayerName(targetSrc) then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Target player not online or invalid source" }))
+                return
+            end
+
+            local success = false
+            local ped = GetPlayerPed(targetSrc)
+
+            if targetType == "coords" then
+                local x = tonumber(data.x)
+                local y = tonumber(data.y)
+                local z = tonumber(data.z)
+                if x and y and z then
+                    SetEntityCoords(ped, x, y, z, false, false, false, true)
+                    success = true
+                end
+            elseif targetType == "player" then
+                local targetPlayerId = tonumber(data.targetPlayerId)
+                if targetPlayerId and GetPlayerName(targetPlayerId) then
+                    local targetPed = GetPlayerPed(targetPlayerId)
+                    local coords = GetEntityCoords(targetPed)
+                    SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+                    success = true
+                end
+            elseif targetType == "location" then
+                local locations = {
+                    ["legion"] = vector3(188.42, -934.33, 30.68),
+                    ["pillbox"] = vector3(311.23, -593.44, 43.28),
+                    ["police"] = vector3(427.11, -980.24, 30.71),
+                    ["mrpd"] = vector3(427.11, -980.24, 30.71),
+                    ["airport"] = vector3(-1037.34, -2737.89, 20.17),
+                    ["sandyshores"] = vector3(1877.06, 3705.21, 33.15),
+                    ["paleto"] = vector3(-123.82, 6450.41, 31.43),
+                }
+                local name = tostring(data.locationName):lower()
+                local coords = locations[name]
+                if coords then
+                    SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+                    success = true
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Player successfully teleported" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Teleportation failed: invalid parameters" }))
+            end
+
+        -- Endpoint: /player/give-item
+        elseif path == "/player/give-item" and method == "POST" then
+            local citizenId = data.citizenId
+            local itemName = data.itemName
+            local itemCount = tonumber(data.itemCount) or 1
+
+            if not citizenId or not itemName then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing citizenId or itemName parameters" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Player offline"
+
+            if GetResourceState('qbx_core') == 'started' then
+                local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                if player then
+                    if GetResourceState('ox_inventory') == 'started' then
+                        success = exports.ox_inventory:AddItem(player.PlayerData.source, itemName, itemCount)
+                    else
+                        success = player.Functions.AddItem(itemName, itemCount)
+                    end
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                if player then
+                    if GetResourceState('ox_inventory') == 'started' then
+                        success = exports.ox_inventory:AddItem(player.PlayerData.source, itemName, itemCount)
+                    else
+                        success = player.Functions.AddItem(itemName, itemCount)
+                    end
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Item successfully given to player" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /status
+        elseif path == "/status" and method == "GET" then
+            local activePlayers = #GetPlayers()
+            local uptimeMs = GetGameTimer()
+            local activeResources = GetNumResources()
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({
+                status = "online",
+                playersCount = activePlayers,
+                uptime = uptimeMs,
+                resources = activeResources,
+                fps = 60
+            }))
+
+        -- Endpoint: /server/resources
+        elseif path == "/server/resources" and method == "GET" then
+            local resourcesList = {}
+            local num = GetNumResources()
+            for i = 0, num - 1 do
+                local name = GetResourceByFindIndex(i)
+                local state = GetResourceState(name)
+                local version = GetResourceMetadata(name, 'version') or '1.0.0'
+                local author = GetResourceMetadata(name, 'author') or 'Unknown'
+                table.insert(resourcesList, {
+                    name = name,
+                    version = version,
+                    author = author,
+                    status = state
+                })
+            end
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ success = true, resources = resourcesList }))
+
+        -- Endpoint: /server/resource/action
+        elseif path == "/server/resource/action" and method == "POST" then
+            local resourceName = data.resourceName
+            local action = data.action
+            if not resourceName or not action then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing parameters" }))
+                return
+            end
+
+            local success = false
+            if action == "start" then
+                success = StartResource(resourceName)
+            elseif action == "stop" then
+                success = StopResource(resourceName)
+            elseif action == "restart" then
+                StopResource(resourceName)
+                success = StartResource(resourceName)
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, status = GetResourceState(resourceName), message = "Action performed successfully" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Failed to perform resource action" }))
+            end
+
+        -- Endpoint: /server/console/command
+        elseif path == "/server/console/command" and method == "POST" then
+            local command = data.command
+            if not command then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing command parameter" }))
+                return
+            end
+
+            print(string.format("> %s", command))
+            ExecuteCommand(command)
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ success = true, message = "Command executed successfully" }))
+
+        -- Endpoint: /server/console/logs
+        elseif path == "/server/console/logs" and method == "GET" then
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ success = true, logs = logBuffer }))
+
+        else
+            res.writeHead(404, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ error = "Endpoint not found" }))
+        end
+    end)
+end)
