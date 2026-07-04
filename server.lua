@@ -31,7 +31,7 @@ CreateThread(function()
 
     for _, filename in ipairs(files) do
         -- GitHub raw public file download URL
-        local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/kp-web-support/%s", owner, repo, branch, filename)
+        local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, filename)
         
         PerformHttpRequest(url, function(statusCode, responseText, headers)
             if statusCode == 200 and responseText and responseText ~= "" then
