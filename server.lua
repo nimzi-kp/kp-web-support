@@ -75,17 +75,7 @@ SetHttpHandler(function(req, res)
         return
     end
 
-    req.setDataHandler(function(body)
-        local data = {}
-        if body and body ~= "" then
-            local status, result = pcall(json.decode, body)
-            if status then
-                data = result
-            else
-                print('^1[kp-web-support] Failed to decode JSON body^0')
-            end
-        end
-
+    local function proceed(data)
         -- Endpoint: /player/kick
         if path == "/player/kick" and method == "POST" then
             local targetSrc = tonumber(data.source)
@@ -475,5 +465,22 @@ SetHttpHandler(function(req, res)
             res.writeHead(404, {["Content-Type"] = "application/json"})
             res.send(json.encode({ error = "Endpoint not found" }))
         end
-    end)
+    end
+
+    if method == "POST" or method == "PUT" then
+        req.setDataHandler(function(body)
+            local data = {}
+            if body and body ~= "" then
+                local status, result = pcall(json.decode, body)
+                if status then
+                    data = result
+                else
+                    print('^1[kp-web-support] Failed to decode JSON body^0')
+                end
+            end
+            proceed(data)
+        end)
+    else
+        proceed({})
+    end
 end)
