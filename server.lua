@@ -503,7 +503,7 @@ SetHttpHandler(function(req, res)
                             if item and item.name then
                                 table.insert(inventory, {
                                     name = item.name,
-                                    label = item.label || item.name,
+                                    label = item.label or item.name,
                                     amount = item.count or item.amount or 1,
                                     slot = tonumber(slot) or item.slot or 1
                                 })
