@@ -320,7 +320,7 @@ SetHttpHandler(function(req, res)
                     SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
                     success = true
                 end
-            elseif targetType == "location" then
+            elseif targetType == "location" or targetType == "preset" then
                 local locations = {
                     ["hospital"] = vector3(362.1837, -596.9826, 28.6635),
                     ["police station"] = vector3(145.3277, -347.5859, 43.9093),
