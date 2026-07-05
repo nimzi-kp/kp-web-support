@@ -298,8 +298,12 @@ SetHttpHandler(function(req, res)
                 local x = tonumber(data.x)
                 local y = tonumber(data.y)
                 local z = tonumber(data.z)
+                local w = tonumber(data.w)
                 if x and y and z then
                     SetEntityCoords(ped, x, y, z, false, false, false, true)
+                    if w then
+                        SetEntityHeading(ped, w)
+                    end
                     success = true
                 end
             elseif targetType == "player" then
@@ -317,21 +321,24 @@ SetHttpHandler(function(req, res)
                 if targetPlayerId and GetPlayerName(targetPlayerId) then
                     local targetPed = GetPlayerPed(targetPlayerId)
                     local coords = GetEntityCoords(targetPed)
+                    local heading = GetEntityHeading(targetPed)
                     SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+                    SetEntityHeading(ped, heading)
                     success = true
                 end
             elseif targetType == "location" or targetType == "preset" then
                 local locations = {
-                    ["hospital"] = vector3(362.1837, -596.9826, 28.6635),
-                    ["police station"] = vector3(145.3277, -347.5859, 43.9093),
-                    ["main garage"] = vector3(-217.3258, -907.8964, 32.7494),
-                    ["muthuk garage"] = vector3(-1987.1281, -488.4459, 11.6551),
-                    ["airport"] = vector3(-1037.7310, -2737.5662, 20.1693),
+                    ["hospital"] = vector4(362.1837, -596.9826, 28.6635, 253.2338),
+                    ["police station"] = vector4(145.3277, -347.5859, 43.9093, 113.0842),
+                    ["main garage"] = vector4(-217.3258, -907.8964, 32.7494, 119.1575),
+                    ["muthuk garage"] = vector4(-1987.1281, -488.4459, 11.6551, 226.3629),
+                    ["airport"] = vector4(-1037.7310, -2737.5662, 20.1693, 336.7335),
                 }
                 local name = tostring(data.locationName):lower()
                 local coords = locations[name]
                 if coords then
                     SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+                    SetEntityHeading(ped, coords.w)
                     success = true
                 end
             end
