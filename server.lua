@@ -91,23 +91,9 @@ SetHttpHandler(function(req, res)
         elseif path == "/player/revive" and method == "POST" then
             local targetSrc = tonumber(data.source)
             if targetSrc and GetPlayerName(targetSrc) then
-                -- 1. Try exports for qbx_ambulancejob and qbx_medical
-                pcall(function()
-                    exports.qbx_ambulancejob:revive(targetSrc)
-                end)
-                pcall(function()
-                    exports.qbx_medical:revive(targetSrc)
-                end)
-
-                -- 2. Trigger client events directly to revive the player's ped
-                TriggerClientEvent("qbx_medical:client:revive", targetSrc)
-                TriggerClientEvent("qbx_ambulancejob:client:revive", targetSrc)
+                -- Trigger the exact client event qbx_ambulancejob/qbx_medical uses to revive players
+                TriggerClientEvent("qbx_medical:client:playerRevived", targetSrc)
                 TriggerClientEvent("hospital:client:Revive", targetSrc)
-                TriggerClientEvent("hospital:client:RevivePlayer", targetSrc)
-                
-                -- 3. Also trigger server event fallbacks
-                TriggerEvent("hospital:server:RevivePlayer", targetSrc)
-                TriggerEvent("qbx_medical:server:revive", targetSrc)
 
                 res.writeHead(200, {["Content-Type"] = "application/json"})
                 res.send(json.encode({ success = true, message = "Revive command dispatched" }))
