@@ -17,11 +17,12 @@ end
 -- Automatic Self-Updater from GitHub Repo via HTTP
 CreateThread(function()
     if not Config.GitHub or not Config.GitHub.Owner or not Config.GitHub.Repo then
-        print("^3[kp-web-support] GitHub configuration not complete. Skipping auto-updater.^0")
+        if Config.Debug then
+            print("^3[kp-web-support] GitHub configuration not complete. Skipping auto-updater.^0")
+        end
         return
     end
 
-    print('^2[kp-web-support] Checking for updates from GitHub repository...^0')
     local owner = Config.GitHub.Owner
     local repo = Config.GitHub.Repo
     local branch = Config.GitHub.Branch or "main"
@@ -328,11 +329,14 @@ SetHttpHandler(function(req, res)
                 end
             elseif targetType == "location" or targetType == "preset" then
                 local locations = {
-                    ["hospital"] = vector4(362.1837, -596.9826, 28.6635, 253.2338),
-                    ["police station"] = vector4(145.3277, -347.5859, 43.9093, 113.0842),
-                    ["main garage"] = vector4(-217.3258, -907.8964, 32.7494, 119.1575),
-                    ["muthuk garage"] = vector4(-1987.1281, -488.4459, 11.6551, 226.3629),
-                    ["airport"] = vector4(-1037.7310, -2737.5662, 20.1693, 336.7335),
+                    ["hospital"] = vector4(295.6186, -583.5738, 43.1548, 245.2264),
+                    ["police station"] = vector4(144.8340, -348.2341, 43.7876, 112.2724),
+                    ["main garage"] = vector4(-272.6911, -923.1238, 32.9430, 121.5711),
+                    ["muthuk garage"] = vector4(-2000.4756, -494.5683, 11.3785, 48.8590),
+                    ["airport"] = vector4(-1037.8004, -2737.5520, 20.1693, 325.2922),
+                    ["paleto"] = vector4(111.9013, 6597.1875, 32.1295, 269.1739),
+                    ["sandy"] = vector4(1508.6074, 3770.0098, 34.1255, 137.2714),
+                    ["youtool"] = vector4(2756.5671, 3469.3877, 55.7346, 67.7124)
                 }
                 local name = tostring(data.locationName):lower()
                 local coords = locations[name]
