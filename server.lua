@@ -1,4 +1,3 @@
--- Live console log buffer
 local logBuffer = {}
 local originalPrint = print
 
@@ -92,7 +91,18 @@ SetHttpHandler(function(req, res)
         elseif path == "/player/revive" and method == "POST" then
             local targetSrc = tonumber(data.source)
             if targetSrc and GetPlayerName(targetSrc) then
+                -- 1. Try qbx_medical exports and events (Qbox standard)
+                if GetResourceState('qbx_medical') == 'started' then
+                    TriggerEvent("qbx_medical:server:revivePlayer", targetSrc)
+                end
+                
+                -- 2. Try hospital / QB-Core standard events
+                TriggerClientEvent("hospital:client:Revive", targetSrc)
+                TriggerClientEvent("hospital:client:RevivePlayer", targetSrc)
                 TriggerEvent("hospital:server:RevivePlayer", targetSrc)
+                TriggerEvent("hospital:server:Revive", targetSrc)
+                TriggerEvent("hospital:server:revive", targetSrc)
+
                 res.writeHead(200, {["Content-Type"] = "application/json"})
                 res.send(json.encode({ success = true, message = "Revive command dispatched" }))
             else
