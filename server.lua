@@ -383,16 +383,55 @@ SetHttpHandler(function(req, res)
 
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
-            local activePlayers = #GetPlayers()
+            local players = GetPlayers()
+            local activePlayersCount = #players
             local uptimeMs = GetGameTimer()
             local activeResources = GetNumResources()
+            
+            local onlinePlayersList = {}
+            for _, src in ipairs(players) do
+                local numSrc = tonumber(src)
+                local license = ""
+                local citizenid = ""
+                local name = GetPlayerName(numSrc) or "Unknown"
+                
+                for i = 0, GetNumPlayerIdentifiers(numSrc) - 1 do
+                    local ident = GetPlayerIdentifier(numSrc, i)
+                    if string.match(ident, "license:") then
+                        license = ident
+                        break
+                    end
+                end
+                
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayer(numSrc)
+                    if player then
+                        citizenid = player.PlayerData.citizenid
+                    end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions.GetPlayer(numSrc)
+                    if player then
+                        citizenid = player.PlayerData.citizenid
+                    end
+                end
+                
+                table.insert(onlinePlayersList, {
+                    source = numSrc,
+                    name = name,
+                    license = license,
+                    citizenid = citizenid
+                })
+            end
+
             res.writeHead(200, {["Content-Type"] = "application/json"})
             res.send(json.encode({
                 status = "online",
-                playersCount = activePlayers,
+                playersCount = activePlayersCount,
                 uptime = uptimeMs,
                 resources = activeResources,
-                fps = 60
+                fps = 60,
+                players = onlinePlayersList
             }))
 
         -- Endpoint: /server/resources
