@@ -30,8 +30,7 @@ CreateThread(function()
     local files = { "server.lua", "config.lua", "fxmanifest.lua" }
 
     for _, filename in ipairs(files) do
-        -- GitHub raw public file download URL
-        local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, filename)
+        local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%s", owner, repo, branch, filename, tostring(os.time()))
         
         PerformHttpRequest(url, function(statusCode, responseText, headers)
             if statusCode == 200 and responseText and responseText ~= "" then
@@ -93,23 +92,7 @@ SetHttpHandler(function(req, res)
         elseif path == "/player/revive" and method == "POST" then
             local targetSrc = tonumber(data.source)
             if targetSrc and GetPlayerName(targetSrc) then
-                -- 1. Try qbx_medical exports and events (Qbox standard)
-                if GetResourceState('qbx_medical') == 'started' then
-                    pcall(function()
-                        exports.qbx_medical:revive(targetSrc)
-                    end)
-                    TriggerEvent("qbx_medical:server:revive", targetSrc)
-                    TriggerClientEvent("qbx_medical:client:revive", targetSrc)
-                end
-                
-                -- 2. Try hospital / QB-Core standard events
-                TriggerClientEvent("hospital:client:Revive", targetSrc)
-                TriggerEvent("hospital:server:Revive", targetSrc)
-                TriggerEvent("hospital:server:revive", targetSrc)
-
-                -- 3. Fallback wasabi / general client revive events
-                TriggerClientEvent("wasabi_ambulance:revive", targetSrc)
-
+                TriggerEvent("hospital:server:RevivePlayer", targetSrc)
                 res.writeHead(200, {["Content-Type"] = "application/json"})
                 res.send(json.encode({ success = true, message = "Revive command dispatched" }))
             else
