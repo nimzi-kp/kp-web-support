@@ -58,7 +58,19 @@ end
 
 -- HTTP Handler
 SetHttpHandler(function(req, res)
-    local path = req.path
+    local rawPath = req.path
+    local path = rawPath
+    local queryParams = {}
+    
+    local qStart = string.find(rawPath, "?")
+    if qStart then
+        path = string.sub(rawPath, 1, qStart - 1)
+        local qStr = string.sub(rawPath, qStart + 1)
+        for k, v in string.gmatch(qStr, "([^&=]+)=([^&=]+)") do
+            queryParams[k] = v
+        end
+    end
+
     local method = req.method
     local headers = req.headers
 
@@ -445,6 +457,87 @@ SetHttpHandler(function(req, res)
             else
                 res.writeHead(400, {["Content-Type"] = "application/json"})
                 res.send(json.encode({ error = errMsg }))
+            end
+
+        -- Endpoint: /player/data
+        elseif path == "/player/data" and method == "GET" then
+            local targetSrc = tonumber(queryParams.source or data.source)
+            local citizenId = queryParams.citizenId or data.citizenId
+
+            if not targetSrc and citizenId then
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                end
+            end
+
+            if targetSrc and GetPlayerName(targetSrc) then
+                local money = { cash = 0, bank = 0 }
+                local inventory = {}
+
+                -- 1. Get money
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayer(targetSrc)
+                    if player then
+                        money.cash = player.PlayerData.money.cash or 0
+                        money.bank = player.PlayerData.money.bank or 0
+                    end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions:GetPlayer(targetSrc)
+                    if player then
+                        money.cash = player.PlayerData.money.cash or 0
+                        money.bank = player.PlayerData.money.bank or 0
+                    end
+                end
+
+                -- 2. Get inventory items
+                if GetResourceState('ox_inventory') == 'started' then
+                    local oxItems = exports.ox_inventory:GetInventoryItems(targetSrc)
+                    if oxItems then
+                        for slot, item in pairs(oxItems) do
+                            if item and item.name then
+                                table.insert(inventory, {
+                                    name = item.name,
+                                    label = item.label || item.name,
+                                    amount = item.count or item.amount or 1,
+                                    slot = tonumber(slot) or item.slot or 1
+                                })
+                            end
+                        end
+                    end
+                else
+                    local player = nil
+                    if GetResourceState('qbx_core') == 'started' then
+                        player = exports.qbx_core:GetPlayer(targetSrc)
+                    elseif GetResourceState('qb-core') == 'started' then
+                        local QBCore = exports['qb-core']:GetCoreObject()
+                        player = QBCore.Functions:GetPlayer(targetSrc)
+                    end
+
+                    if player and player.PlayerData.items then
+                        for slot, item in pairs(player.PlayerData.items) do
+                            if item and item.name then
+                                table.insert(inventory, {
+                                    name = item.name,
+                                    label = item.label or item.count or item.name,
+                                    amount = item.amount or item.count or 1,
+                                    slot = tonumber(slot) or item.slot or 1
+                                })
+                            end
+                        end
+                    end
+                end
+
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, money = money, inventory = inventory }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Player not online" }))
             end
 
         -- Endpoint: /status
