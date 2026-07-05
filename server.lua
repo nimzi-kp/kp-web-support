@@ -93,9 +93,23 @@ SetHttpHandler(function(req, res)
         elseif path == "/player/revive" and method == "POST" then
             local targetSrc = tonumber(data.source)
             if targetSrc and GetPlayerName(targetSrc) then
-                -- Try reviving through Qbox or fallback events
+                -- 1. Try qbx_medical exports and events (Qbox standard)
+                if GetResourceState('qbx_medical') == 'started' then
+                    pcall(function()
+                        exports.qbx_medical:revive(targetSrc)
+                    end)
+                    TriggerEvent("qbx_medical:server:revive", targetSrc)
+                    TriggerClientEvent("qbx_medical:client:revive", targetSrc)
+                end
+                
+                -- 2. Try hospital / QB-Core standard events
                 TriggerClientEvent("hospital:client:Revive", targetSrc)
-                TriggerEvent("qbx_medical:server:revive", targetSrc) -- Qbox core revive event support
+                TriggerEvent("hospital:server:Revive", targetSrc)
+                TriggerEvent("hospital:server:revive", targetSrc)
+
+                -- 3. Fallback wasabi / general client revive events
+                TriggerClientEvent("wasabi_ambulance:revive", targetSrc)
+
                 res.writeHead(200, {["Content-Type"] = "application/json"})
                 res.send(json.encode({ success = true, message = "Revive command dispatched" }))
             else
