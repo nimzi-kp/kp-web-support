@@ -395,6 +395,54 @@ SetHttpHandler(function(req, res)
                 res.send(json.encode({ error = errMsg }))
             end
 
+        -- Endpoint: /player/clear-inventory
+        elseif path == "/player/clear-inventory" and method == "POST" then
+            local citizenId = data.citizenId
+            local targetSrc = tonumber(data.source)
+            
+            -- Resolve source if player is online but source not sent
+            if not targetSrc and citizenId then
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                end
+            end
+
+            local success = false
+            local errMsg = "Player offline"
+
+            if targetSrc and GetPlayerName(targetSrc) then
+                if GetResourceState('ox_inventory') == 'started' then
+                    exports.ox_inventory:ClearInventory(targetSrc)
+                end
+                
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayer(targetSrc)
+                    if player then
+                        player.Functions.ClearInventory()
+                    end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions:GetPlayer(targetSrc)
+                    if player then
+                        player.Functions.ClearInventory()
+                    end
+                end
+                success = true
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Inventory cleared successfully" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
             local players = GetPlayers()
