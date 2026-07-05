@@ -304,6 +304,16 @@ SetHttpHandler(function(req, res)
                 end
             elseif targetType == "player" then
                 local targetPlayerId = tonumber(data.targetPlayerId)
+                
+                -- Support looking up target by Citizen ID as well
+                if not targetPlayerId then
+                    local targetCitizenId = tostring(data.targetPlayerId)
+                    if GetResourceState('qbx_core') == 'started' then
+                        local player = exports.qbx_core:GetPlayerByCitizenId(targetCitizenId)
+                        if player then targetPlayerId = player.PlayerData.source end
+                    end
+                end
+
                 if targetPlayerId and GetPlayerName(targetPlayerId) then
                     local targetPed = GetPlayerPed(targetPlayerId)
                     local coords = GetEntityCoords(targetPed)
@@ -312,13 +322,11 @@ SetHttpHandler(function(req, res)
                 end
             elseif targetType == "location" then
                 local locations = {
-                    ["legion"] = vector3(188.42, -934.33, 30.68),
-                    ["pillbox"] = vector3(311.23, -593.44, 43.28),
-                    ["police"] = vector3(427.11, -980.24, 30.71),
-                    ["mrpd"] = vector3(427.11, -980.24, 30.71),
-                    ["airport"] = vector3(-1037.34, -2737.89, 20.17),
-                    ["sandyshores"] = vector3(1877.06, 3705.21, 33.15),
-                    ["paleto"] = vector3(-123.82, 6450.41, 31.43),
+                    ["hospital"] = vector3(362.1837, -596.9826, 28.6635),
+                    ["police station"] = vector3(145.3277, -347.5859, 43.9093),
+                    ["main garage"] = vector3(-217.3258, -907.8964, 32.7494),
+                    ["muthuk garage"] = vector3(-1987.1281, -488.4459, 11.6551),
+                    ["airport"] = vector3(-1037.7310, -2737.5662, 20.1693),
                 }
                 local name = tostring(data.locationName):lower()
                 local coords = locations[name]
