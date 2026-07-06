@@ -4,4 +4,4 @@ author 'KP'
 description 'Secure FiveM control bridge for ARRP dashboard panel'
 version '1.0.0'
 
-server_scripts : 'server.lua'
+server_script 'server.lua'
