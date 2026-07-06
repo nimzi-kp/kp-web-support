@@ -607,44 +607,76 @@ SetHttpHandler(function(req, res)
         elseif path == "/vehicle/action" and method == "POST" then
             local plate = data.plate
             local action = data.action
+
             if not plate or not action then
                 res.writeHead(400, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ error = "Missing plate or action parameters" }))
+                res.send(json.encode({
+                    success = false,
+                    error = "Missing plate or action parameters"
+                }))
                 return
             end
 
-            plate = string.upper(tostring(plate)):gsub("%s+", "")
+            plate = tostring(plate):upper():gsub("%s+", "")
+            action = tostring(action):lower()
+
             local success = false
-            local errMsg = "Vehicle not active/spawned in world"
+            local errMsg = "Vehicle not found"
 
             local ok, err = pcall(function()
-                if not GetAllVehicles then
-                    errMsg = "GetAllVehicles native is not available on this FiveM server (OneSync might be disabled)"
+                if type(GetAllVehicles) ~= "function" then
+                    errMsg = "GetAllVehicles is unavailable. Make sure OneSync is enabled."
                     return
                 end
-                local allVehicles = GetAllVehicles()
-                if allVehicles then
-                    for _, vehicle in ipairs(allVehicles) do
+
+                local vehicles = GetAllVehicles()
+
+                if not vehicles or #vehicles == 0 then
+                    errMsg = "No vehicles found on server."
+                    return
+                end
+
+                for _, vehicle in ipairs(vehicles) do
+                    if DoesEntityExist(vehicle) then
                         local vehPlate = GetVehicleNumberPlateText(vehicle)
+
                         if vehPlate then
-                            local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
-                            if cleanVehPlate == plate then
+                            vehPlate = tostring(vehPlate):upper():gsub("%s+", "")
+
+                            if vehPlate == plate then
+
                                 if action == "repair" then
                                     SetVehicleEngineHealth(vehicle, 1000.0)
                                     SetVehicleBodyHealth(vehicle, 1000.0)
-                                    SetVehicleFixed(vehicle)
+                                    SetVehiclePetrolTankHealth(vehicle, 1000.0)
+
+                                    if SetVehicleFixed then
+                                        SetVehicleFixed(vehicle)
+                                    end
+
                                     SetVehicleDirtLevel(vehicle, 0.0)
+
                                     success = true
+                                    errMsg = nil
+
                                 elseif action == "refuel" then
-                                    local fuelVal = tonumber(data.fuel) or 100.0
-                                    if Entity(vehicle).state.fuel then
-                                        Entity(vehicle).state.fuel = fuelVal
-                                    end
+                                    local fuel = tonumber(data.fuel) or 100.0
+
                                     if SetVehicleFuelLevel then
-                                        SetVehicleFuelLevel(vehicle, fuelVal)
+                                        SetVehicleFuelLevel(vehicle, fuel)
                                     end
+
+                                    if Entity and Entity(vehicle) and Entity(vehicle).state then
+                                        Entity(vehicle).state:set("fuel", fuel, true)
+                                    end
+
                                     success = true
+                                    errMsg = nil
+
+                                else
+                                    errMsg = "Invalid action: " .. action
                                 end
+
                                 break
                             end
                         end
@@ -653,15 +685,22 @@ SetHttpHandler(function(req, res)
             end)
 
             if not ok then
-                print("^1[kp-web-support] Error in /vehicle/action: " .. tostring(err) .. "^0")
+                print("^1[kp-web-support] /vehicle/action error: " .. tostring(err) .. "^0")
+
                 res.writeHead(500, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ error = "Internal server error in vehicle action", details = tostring(err) }))
+                res.send(json.encode({
+                    success = false,
+                    error = tostring(err)
+                }))
                 return
             end
 
             res.writeHead(200, {["Content-Type"] = "application/json"})
-            res.send(json.encode({ success = success, message = success and "Vehicle action executed successfully" or errMsg }))
-
+            res.send(json.encode({
+                success = success,
+                message = success and "Vehicle action executed successfully" or errMsg
+            }))
+    
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
             local players = GetPlayers()
