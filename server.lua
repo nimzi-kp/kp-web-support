@@ -713,11 +713,32 @@ SetHttpHandler(function(req, res)
                 local state = GetResourceState(name)
                 local version = GetResourceMetadata(name, 'version') or '1.0.0'
                 local author = GetResourceMetadata(name, 'author') or 'Unknown'
+                local isDefault = false
+                local rPath = GetResourcePath(name)
+                if rPath then
+                    rPath = string.lower(rPath)
+                    if string.find(rPath, "%[cfx%-default%]") or string.find(rPath, "%[default%]") or string.find(rPath, "citizen/system_resources") then
+                        isDefault = true
+                    end
+                end
+                
+                local defaultNames = { 
+                    chat = true, playernames = true, spawnmanager = true, 
+                    sessionmanager = true, hardcap = true, rconlog = true, 
+                    baseevents = true, yarn = true, webpack = true, 
+                    monitor = true, webadmin = true, mapmanager = true,
+                    ["basic-gamemode"] = true, ["screenshot-basic"] = true
+                }
+                if defaultNames[string.lower(name)] then
+                    isDefault = true
+                end
+
                 table.insert(resourcesList, {
                     name = name,
                     version = version,
                     author = author,
-                    status = state
+                    status = state,
+                    isDefault = isDefault
                 })
             end
             res.writeHead(200, {["Content-Type"] = "application/json"})
