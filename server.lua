@@ -549,49 +549,50 @@ SetHttpHandler(function(req, res)
                 return
             end
 
-            -- Clean the plate string (trim and uppercase)
             plate = string.upper(tostring(plate)):gsub("%s+", "")
-
             local found = false
             local liveData = {}
 
-            -- Get all vehicle entities on the server
-            local allVehicles = GetAllVehicles()
-            for _, vehicle in ipairs(allVehicles) do
-                local vehPlate = GetVehicleNumberPlateText(vehicle)
-                if vehPlate then
-                    -- Clean the vehicle plate from server
-                    local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
-                    if cleanVehPlate == plate then
-                        found = true
-                        
-                        -- Get healths
-                        local engineHealth = GetVehicleEngineHealth(vehicle)
-                        local bodyHealth = GetVehicleBodyHealth(vehicle)
-                        
-                        print(string.format("[Vehicle Debug] Plate: %s | Engine Health: %s | Body Health: %s", plate, tostring(engineHealth), tostring(bodyHealth)))
-                        
-                        -- Get fuel (checking state bags and decorators or exports)
-                        local fuel = 100.0
-                        if Entity(vehicle).state.fuel then
-                            fuel = Entity(vehicle).state.fuel
-                        elseif GetVehicleFuelLevel then
-                            fuel = GetVehicleFuelLevel(vehicle)
+            local ok, err = pcall(function()
+                if not GetAllVehicles then
+                    return
+                end
+                local allVehicles = GetAllVehicles()
+                if allVehicles then
+                    for _, vehicle in ipairs(allVehicles) do
+                        local vehPlate = GetVehicleNumberPlateText(vehicle)
+                        if vehPlate then
+                            local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
+                            if cleanVehPlate == plate then
+                                found = true
+                                local engineHealth = GetVehicleEngineHealth(vehicle)
+                                local bodyHealth = GetVehicleBodyHealth(vehicle)
+                                
+                                print(string.format("[Vehicle Debug] Plate: %s | Engine Health: %s | Body Health: %s", plate, tostring(engineHealth), tostring(bodyHealth)))
+                                
+                                local fuel = 100.0
+                                if Entity(vehicle).state.fuel then
+                                    fuel = Entity(vehicle).state.fuel
+                                elseif GetVehicleFuelLevel then
+                                    fuel = GetVehicleFuelLevel(vehicle)
+                                end
+                                local coords = GetEntityCoords(vehicle)
+                                liveData = {
+                                    online = true,
+                                    engine = engineHealth,
+                                    body = bodyHealth,
+                                    fuel = fuel,
+                                    coords = { x = coords.x, y = coords.y, z = coords.z }
+                                }
+                                break
+                            end
                         end
-                        
-                        -- Get coordinates/location
-                        local coords = GetEntityCoords(vehicle)
-
-                        liveData = {
-                            online = true,
-                            engine = engineHealth,
-                            body = bodyHealth,
-                            fuel = fuel,
-                            coords = { x = coords.x, y = coords.y, z = coords.z }
-                        }
-                        break
                     end
                 end
+            end)
+
+            if not ok then
+                print("^1[kp-web-support] Error in /vehicle/data: " .. tostring(err) .. "^0")
             end
 
             if found then
@@ -616,40 +617,50 @@ SetHttpHandler(function(req, res)
             local success = false
             local errMsg = "Vehicle not active/spawned in world"
 
-            local allVehicles = GetAllVehicles()
-            for _, vehicle in ipairs(allVehicles) do
-                local vehPlate = GetVehicleNumberPlateText(vehicle)
-                if vehPlate then
-                    local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
-                    if cleanVehPlate == plate then
-                        if action == "repair" then
-                            SetVehicleEngineHealth(vehicle, 1000.0)
-                            SetVehicleBodyHealth(vehicle, 1000.0)
-                            SetVehicleFixed(vehicle)
-                            SetVehicleDirtLevel(vehicle, 0.0)
-                            success = true
-                        elseif action == "refuel" then
-                            local fuelVal = tonumber(data.fuel) or 100.0
-                            if Entity(vehicle).state.fuel then
-                                Entity(vehicle).state.fuel = fuelVal
+            local ok, err = pcall(function()
+                if not GetAllVehicles then
+                    errMsg = "GetAllVehicles native is not available on this FiveM server (OneSync might be disabled)"
+                    return
+                end
+                local allVehicles = GetAllVehicles()
+                if allVehicles then
+                    for _, vehicle in ipairs(allVehicles) do
+                        local vehPlate = GetVehicleNumberPlateText(vehicle)
+                        if vehPlate then
+                            local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
+                            if cleanVehPlate == plate then
+                                if action == "repair" then
+                                    SetVehicleEngineHealth(vehicle, 1000.0)
+                                    SetVehicleBodyHealth(vehicle, 1000.0)
+                                    SetVehicleFixed(vehicle)
+                                    SetVehicleDirtLevel(vehicle, 0.0)
+                                    success = true
+                                elseif action == "refuel" then
+                                    local fuelVal = tonumber(data.fuel) or 100.0
+                                    if Entity(vehicle).state.fuel then
+                                        Entity(vehicle).state.fuel = fuelVal
+                                    end
+                                    if SetVehicleFuelLevel then
+                                        SetVehicleFuelLevel(vehicle, fuelVal)
+                                    end
+                                    success = true
+                                end
+                                break
                             end
-                            if SetVehicleFuelLevel then
-                                SetVehicleFuelLevel(vehicle, fuelVal)
-                            end
-                            success = true
                         end
-                        break
                     end
                 end
+            end)
+
+            if not ok then
+                print("^1[kp-web-support] Error in /vehicle/action: " .. tostring(err) .. "^0")
+                res.writeHead(500, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Internal server error in vehicle action", details = tostring(err) }))
+                return
             end
 
-            if success then
-                res.writeHead(200, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ success = true, message = "Vehicle action executed successfully" }))
-            else
-                res.writeHead(200, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ success = false, message = errMsg }))
-            end
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ success = success, message = success and "Vehicle action executed successfully" or errMsg }))
 
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
