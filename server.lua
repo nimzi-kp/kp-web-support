@@ -1,18 +1,16 @@
 local logBuffer = {}
-local originalPrint = print
 
-print = function(...)
-    local args = {...}
-    local msg = ""
-    for i, v in ipairs(args) do
-        msg = msg .. tostring(v) .. (i < #args and "\t" or "")
+-- Capture server-wide console log outputs in real-time
+AddEventHandler('onLogLine', function(msg)
+    -- Strip color codes (e.g. ^1, ^2) and clean carriage returns
+    local cleanMsg = msg:gsub("%^%d", ""):gsub("[\r\n]", "")
+    if cleanMsg and cleanMsg ~= "" then
+        table.insert(logBuffer, cleanMsg)
+        if #logBuffer > 150 then
+            table.remove(logBuffer, 1)
+        end
     end
-    table.insert(logBuffer, msg)
-    if #logBuffer > 150 then
-        table.remove(logBuffer, 1)
-    end
-    originalPrint(msg)
-end
+end)
 
 -- Automatic Self-Updater from GitHub Repo via HTTP
 CreateThread(function()
