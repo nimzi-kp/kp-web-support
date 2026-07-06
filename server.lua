@@ -602,6 +602,55 @@ SetHttpHandler(function(req, res)
                 res.send(json.encode({ success = false, message = "Vehicle not spawned/active in world" }))
             end
 
+        -- Endpoint: /vehicle/action
+        elseif path == "/vehicle/action" and method == "POST" then
+            local plate = data.plate
+            local action = data.action
+            if not plate or not action then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing plate or action parameters" }))
+                return
+            end
+
+            plate = string.upper(tostring(plate)):gsub("%s+", "")
+            local success = false
+            local errMsg = "Vehicle not active/spawned in world"
+
+            local allVehicles = GetAllVehicles()
+            for _, vehicle in ipairs(allVehicles) do
+                local vehPlate = GetVehicleNumberPlateText(vehicle)
+                if vehPlate then
+                    local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
+                    if cleanVehPlate == plate then
+                        if action == "repair" then
+                            SetVehicleEngineHealth(vehicle, 1000.0)
+                            SetVehicleBodyHealth(vehicle, 1000.0)
+                            SetVehicleFixed(vehicle)
+                            SetVehicleDirtLevel(vehicle, 0.0)
+                            success = true
+                        elseif action == "refuel" then
+                            local fuelVal = tonumber(data.fuel) or 100.0
+                            if Entity(vehicle).state.fuel then
+                                Entity(vehicle).state.fuel = fuelVal
+                            end
+                            if SetVehicleFuelLevel then
+                                SetVehicleFuelLevel(vehicle, fuelVal)
+                            end
+                            success = true
+                        end
+                        break
+                    end
+                end
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Vehicle action executed successfully" }))
+            else
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = false, message = errMsg }))
+            end
+
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
             local players = GetPlayers()
