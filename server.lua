@@ -540,6 +540,66 @@ SetHttpHandler(function(req, res)
                 res.send(json.encode({ error = "Player not online" }))
             end
 
+        -- Endpoint: /vehicle/data
+        elseif path == "/vehicle/data" and method == "GET" then
+            local plate = queryParams.plate or data.plate
+            if not plate then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Missing plate parameter" }))
+                return
+            end
+
+            -- Clean the plate string (trim and uppercase)
+            plate = string.upper(tostring(plate)):gsub("%s+", "")
+
+            local found = false
+            local liveData = {}
+
+            -- Get all vehicle entities on the server
+            local allVehicles = GetAllVehicles()
+            for _, vehicle in ipairs(allVehicles) do
+                local vehPlate = GetVehicleNumberPlateText(vehicle)
+                if vehPlate then
+                    -- Clean the vehicle plate from server
+                    local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
+                    if cleanVehPlate == plate then
+                        found = true
+                        
+                        -- Get healths
+                        local engineHealth = GetVehicleEngineHealth(vehicle)
+                        local bodyHealth = GetVehicleBodyHealth(vehicle)
+                        
+                        -- Get fuel (checking state bags and decorators or exports)
+                        local fuel = 100.0
+                        if Entity(vehicle).state.fuel then
+                            fuel = Entity(vehicle).state.fuel
+                        elseif GetVehicleFuelLevel then
+                            fuel = GetVehicleFuelLevel(vehicle)
+                        end
+                        
+                        -- Get coordinates/location
+                        local coords = GetEntityCoords(vehicle)
+
+                        liveData = {
+                            online = true,
+                            engine = engineHealth,
+                            body = bodyHealth,
+                            fuel = fuel,
+                            coords = { x = coords.x, y = coords.y, z = coords.z }
+                        }
+                        break
+                    end
+                end
+            end
+
+            if found then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, vehicle = liveData }))
+            else
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = false, message = "Vehicle not spawned/active in world" }))
+            end
+
         -- Endpoint: /status
         elseif path == "/status" and method == "GET" then
             local players = GetPlayers()
