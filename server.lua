@@ -1,4 +1,5 @@
 local logBuffer = {}
+local Debug = false
 
 -- Capture server-wide console log outputs in real-time
 AddEventHandler('onLogLine', function(msg)
@@ -14,18 +15,18 @@ end)
 
 -- Automatic Self-Updater from GitHub Repo via HTTP
 CreateThread(function()
-    if not Config.GitHub or not Config.GitHub.Owner or not Config.GitHub.Repo then
-        if Config.Debug then
+    local owner = "nimzi-kp"
+    local repo = "kp-web-support"
+    local branch = "main"
+
+    local files = { "server.lua", "fxmanifest.lua" }
+
+    if not owner or not repo or not branch then
+        if Debug then
             print("^3[kp-web-support] GitHub configuration not complete. Skipping auto-updater.^0")
         end
         return
     end
-
-    local owner = Config.GitHub.Owner
-    local repo = Config.GitHub.Repo
-    local branch = Config.GitHub.Branch or "main"
-
-    local files = { "server.lua", "config.lua", "fxmanifest.lua" }
 
     for _, filename in ipairs(files) do
         local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%s", owner, repo, branch, filename, tostring(os.time()))
@@ -39,7 +40,7 @@ CreateThread(function()
                     print(string.format("^2[kp-web-support] Updated file automatically: %s. Restart resource to apply updates.^0", filename))
                 end
             elseif statusCode == 404 then
-                if Config.Debug then
+                if Debug then
                     print(string.format("^3[kp-web-support] File %s not found in repository path.^0", filename))
                 end
             else
@@ -72,15 +73,16 @@ SetHttpHandler(function(req, res)
     local method = req.method
     local headers = req.headers
 
-    if Config.Debug then
+    if Debug then
         print(string.format('^3[kp-web-support] Incoming request: %s %s^0', method, path))
     end
 
-    -- Verify API Key
+    -- Verify API Key (Strictly loaded from server.cfg via 'set kp_web_api_key')
     local apiKey = headers["X-Bridge-API-Key"] or headers["x-bridge-api-key"]
-    if apiKey ~= Config.ApiKey then
+    local expectedKey = GetConvar("kp_web_api_key", "")
+    if expectedKey == "" or apiKey ~= expectedKey then
         res.writeHead(403, {["Content-Type"] = "application/json"})
-        res.send(json.encode({ error = "Unauthorized: Invalid API Key" }))
+        res.send(json.encode({ error = "Unauthorized: Invalid or unconfigured API Key" }))
         return
     end
 
