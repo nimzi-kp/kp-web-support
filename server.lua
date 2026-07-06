@@ -1,6 +1,16 @@
 local logBuffer = {}
 local Debug = false
 
+CreateThread(function()
+    print("^2===== Vehicle Native Test =====^0")
+    print("SetVehicleEngineHealth:", SetVehicleEngineHealth)
+    print("SetVehicleBodyHealth:", SetVehicleBodyHealth)
+    print("SetVehicleFixed:", SetVehicleFixed)
+    print("SetVehicleFuelLevel:", SetVehicleFuelLevel)
+    print("Citizen.InvokeNative:", Citizen.InvokeNative)
+    print("^2===============================^0")
+end)
+
 -- Capture server-wide console log outputs in real-time
 AddEventHandler('onLogLine', function(msg)
     -- Strip color codes (e.g. ^1, ^2) and clean carriage returns
