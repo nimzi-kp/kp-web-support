@@ -569,6 +569,8 @@ SetHttpHandler(function(req, res)
                         local engineHealth = GetVehicleEngineHealth(vehicle)
                         local bodyHealth = GetVehicleBodyHealth(vehicle)
                         
+                        print(string.format("[Vehicle Debug] Plate: %s | Engine Health: %s | Body Health: %s", plate, tostring(engineHealth), tostring(bodyHealth)))
+                        
                         -- Get fuel (checking state bags and decorators or exports)
                         local fuel = 100.0
                         if Entity(vehicle).state.fuel then
