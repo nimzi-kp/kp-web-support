@@ -417,6 +417,43 @@ SetHttpHandler(function(req, res)
                 res.send(json.encode({ error = errMsg }))
             end
 
+        -- Endpoint: /player/warn
+        elseif path == "/player/warn" and method == "POST" then
+            local targetSrc = tonumber(data.source)
+            local citizenId = data.citizenId
+            local reason = data.reason or "No reason specified"
+            local author = data.author or "Staff"
+
+            if not targetSrc and citizenId then
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                end
+            end
+
+            if not targetSrc or not GetPlayerName(targetSrc) then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Player must be online to issue a warning" }))
+                return
+            end
+
+            -- Issue warning through txAdmin console command
+            ExecuteCommand(string.format("txaWarnPlayer %d %q %q", targetSrc, reason, author))
+
+            -- Also send a direct message/alert to the player
+            TriggerClientEvent('chat:addMessage', targetSrc, {
+                color = { 255, 50, 50 },
+                multiline = true,
+                args = { "SYSTEM WARNING", string.format("You have been warned by %s for: %s", author, reason) }
+            })
+
+            res.writeHead(200, {["Content-Type"] = "application/json"})
+            res.send(json.encode({ success = true, message = "Warning successfully issued to player via txAdmin" }))
+
         -- Endpoint: /player/give-item
         elseif path == "/player/give-item" and method == "POST" then
             local citizenId = data.citizenId
