@@ -30,7 +30,7 @@ CreateThread(function()
 
     for _, filename in ipairs(files) do
         local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%s", owner, repo, branch, filename, tostring(os.time()))
-        
+    
         PerformHttpRequest(url, function(statusCode, responseText, headers)
             if statusCode == 200 and responseText and responseText ~= "" then
                 local localContent = LoadResourceFile(GetCurrentResourceName(), filename)
