@@ -377,6 +377,56 @@ SetHttpHandler(function(req, res)
                 res.send(json.encode({ error = "Teleportation failed: invalid parameters" }))
             end
 
+        -- Endpoint: /player/make-admin
+        elseif path == "/player/make-admin" and method == "POST" then
+            local targetSrc = tonumber(data.source)
+            local citizenId = data.citizenId
+
+            if not targetSrc and citizenId then
+                if GetResourceState('qbx_core') == 'started' then
+                    local player = exports.qbx_core:GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                elseif GetResourceState('qb-core') == 'started' then
+                    local QBCore = exports['qb-core']:GetCoreObject()
+                    local player = QBCore.Functions.GetPlayerByCitizenId(citizenId)
+                    if player then targetSrc = player.PlayerData.source end
+                end
+            end
+
+            if not targetSrc or not GetPlayerName(targetSrc) then
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = "Player must be online to grant temporary admin permission" }))
+                return
+            end
+
+            local success = false
+            local errMsg = "Framework not started"
+
+            if GetResourceState('qbx_core') == 'started' then
+                success = exports.qbx_core:AddPermission(targetSrc, "admin")
+                if not success then
+                    local license = GetPlayerIdentifierByType(targetSrc, "license")
+                    if license then
+                        ExecuteCommand(string.format("add_principal identifier.%s group.admin", license))
+                        success = true
+                    else
+                        errMsg = "Failed to retrieve player license"
+                    end
+                end
+            elseif GetResourceState('qb-core') == 'started' then
+                local QBCore = exports['qb-core']:GetCoreObject()
+                QBCore.Functions.AddPermission(targetSrc, "admin")
+                success = true
+            end
+
+            if success then
+                res.writeHead(200, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ success = true, message = "Successfully granted temporary admin permissions to player" }))
+            else
+                res.writeHead(400, {["Content-Type"] = "application/json"})
+                res.send(json.encode({ error = errMsg }))
+            end
+
         -- Endpoint: /player/give-item
         elseif path == "/player/give-item" and method == "POST" then
             local citizenId = data.citizenId
