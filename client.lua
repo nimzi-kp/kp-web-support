@@ -23,28 +23,45 @@ end)
 
 RegisterNetEvent('kp-web-support:client:refuelVehicle', function(netId, fuel)
     if not netId then return end
-    local fuelAmount = tonumber(fuel) or 100.0
+    local fuelAmount = (tonumber(fuel) or 100.0) + 0.0
     
     local vehicle = NetworkGetEntityFromNetworkId(netId)
     if DoesEntityExist(vehicle) then
-        if SetVehicleFuelLevel then
-            SetVehicleFuelLevel(vehicle, fuelAmount)
-        end
+        SetVehicleFuelLevel(vehicle, fuelAmount)
 
-        -- Update state bag
+        -- Update state bags
         if Entity(vehicle) and Entity(vehicle).state then
             Entity(vehicle).state:set("fuel", fuelAmount, true)
         end
 
-        -- Support popular fuel exports
-        if GetResourceState('LegacyFuel') == 'started' then
-            exports['LegacyFuel']:SetFuel(vehicle, fuelAmount)
-        elseif GetResourceState('cdn-fuel') == 'started' then
-            exports['cdn-fuel']:SetFuel(vehicle, fuelAmount)
-        elseif GetResourceState('ox_fuel') == 'started' then
-            exports['ox_fuel']:SetFuel(vehicle, fuelAmount)
-        elseif GetResourceState('ps-fuel') == 'started' then
-            exports['ps-fuel']:SetFuel(vehicle, fuelAmount)
+        -- Try all popular fuel script exports independently
+        local fuelExports = { 'LegacyFuel', 'qb-fuel', 'cdn-fuel', 'ox_fuel', 'ps-fuel', 'ti_fuel', 'Renewed-Fuel', 'lc_gas_station' }
+        for _, resName in ipairs(fuelExports) do
+            if GetResourceState(resName) == 'started' then
+                pcall(function()
+                    exports[resName]:SetFuel(vehicle, fuelAmount)
+                end)
+            end
         end
     end
 end)
+
+-- Periodically sync body and engine health to vehicle state bag for server & dashboard access
+CreateThread(function()
+    while true do
+        Wait(2000)
+        local ped = PlayerPedId()
+        if IsPedInAnyVehicle(ped, false) then
+            local veh = GetVehiclePedIsIn(ped, false)
+            if DoesEntityExist(veh) and GetPedInVehicleSeat(veh, -1) == ped then
+                local bHealth = GetVehicleBodyHealth(veh)
+                local eHealth = GetVehicleEngineHealth(veh)
+                if Entity(veh) and Entity(veh).state then
+                    Entity(veh).state:set('bodyHealth', bHealth, true)
+                    Entity(veh).state:set('engineHealth', eHealth, true)
+                end
+            end
+        end
+    end
+end)
+

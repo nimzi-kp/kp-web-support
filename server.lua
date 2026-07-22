@@ -652,13 +652,26 @@ SetHttpHandler(function(req, res)
                             local cleanVehPlate = string.upper(vehPlate):gsub("%s+", "")
                             if cleanVehPlate == plate then
                                 found = true
-                                local engineHealth = GetVehicleEngineHealth(vehicle)
-                                local bodyHealth = GetVehicleBodyHealth(vehicle)
+                                local engineHealth = GetVehicleEngineHealth(vehicle) or 1000.0
+                                if Entity and Entity(vehicle) and Entity(vehicle).state and Entity(vehicle).state.engineHealth then
+                                    engineHealth = Entity(vehicle).state.engineHealth
+                                end
+
+                                local bodyHealth = 1000.0
+                                if Entity and Entity(vehicle) and Entity(vehicle).state then
+                                    if Entity(vehicle).state.bodyHealth then
+                                        bodyHealth = Entity(vehicle).state.bodyHealth
+                                    elseif Entity(vehicle).state.body_health then
+                                        bodyHealth = Entity(vehicle).state.body_health
+                                    elseif Entity(vehicle).state.body then
+                                        bodyHealth = Entity(vehicle).state.body
+                                    end
+                                end
                                 
                                 print(string.format("[Vehicle Debug] Plate: %s | Engine Health: %s | Body Health: %s", plate, tostring(engineHealth), tostring(bodyHealth)))
                                 
                                 local fuel = 100.0
-                                if Entity(vehicle).state.fuel then
+                                if Entity and Entity(vehicle) and Entity(vehicle).state and Entity(vehicle).state.fuel then
                                     fuel = Entity(vehicle).state.fuel
                                 elseif GetVehicleFuelLevel then
                                     fuel = GetVehicleFuelLevel(vehicle)
