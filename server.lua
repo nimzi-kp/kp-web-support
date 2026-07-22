@@ -307,17 +307,26 @@ SetHttpHandler(function(req, res)
             local success = false
             local ped = GetPlayerPed(targetSrc)
 
+            local function performTeleport(x, y, z, heading)
+                if not ped or not DoesEntityExist(ped) then return false end
+                local vehicle = GetVehiclePedIsIn(ped, false)
+                if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                    SetEntityCoords(vehicle, x, y, z, false, false, false, true)
+                    if heading then SetEntityHeading(vehicle, heading) end
+                else
+                    SetEntityCoords(ped, x, y, z, false, false, false, true)
+                    if heading then SetEntityHeading(ped, heading) end
+                end
+                return true
+            end
+
             if targetType == "coords" then
                 local x = tonumber(data.x)
                 local y = tonumber(data.y)
                 local z = tonumber(data.z)
                 local w = tonumber(data.w)
                 if x and y and z then
-                    SetEntityCoords(ped, x, y, z, false, false, false, true)
-                    if w then
-                        SetEntityHeading(ped, w)
-                    end
-                    success = true
+                    success = performTeleport(x, y, z, w)
                 end
             elseif targetType == "player" then
                 local targetPlayerId = tonumber(data.targetPlayerId)
@@ -335,9 +344,7 @@ SetHttpHandler(function(req, res)
                     local targetPed = GetPlayerPed(targetPlayerId)
                     local coords = GetEntityCoords(targetPed)
                     local heading = GetEntityHeading(targetPed)
-                    SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
-                    SetEntityHeading(ped, heading)
-                    success = true
+                    success = performTeleport(coords.x, coords.y, coords.z, heading)
                 end
             elseif targetType == "location" or targetType == "preset" then
                 local locations = {
@@ -361,11 +368,10 @@ SetHttpHandler(function(req, res)
                 local name = tostring(data.locationName):lower()
                 local coords = locations[name]
                 if coords then
-                    SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
-                    SetEntityHeading(ped, coords.w)
-                    success = true
+                    success = performTeleport(coords.x, coords.y, coords.z, coords.w)
                 end
             end
+
 
             if success then
                 res.writeHead(200, {["Content-Type"] = "application/json"})
