@@ -677,14 +677,11 @@ SetHttpHandler(function(req, res)
                                         bodyHealth = Entity(vehicle).state.bodyHealth
                                     elseif Entity(vehicle).state.body_health then
                                         bodyHealth = Entity(vehicle).state.body_health
-                                    elseif Entity(vehicle).state.body then
-                                        bodyHealth = Entity(vehicle).state.body
                                     end
                                 end
                                 
-                                print(string.format("[Vehicle Debug] Plate: %s | Engine Health: %s | Body Health: %s", plate, tostring(engineHealth), tostring(bodyHealth)))
-                                
                                 local fuel = 100.0
+
                                 if Entity and Entity(vehicle) and Entity(vehicle).state and Entity(vehicle).state.fuel then
                                     fuel = Entity(vehicle).state.fuel
                                 elseif GetVehicleFuelLevel then
