@@ -343,13 +343,21 @@ SetHttpHandler(function(req, res)
                 local locations = {
                     ["hospital"] = vector4(295.6186, -583.5738, 43.1548, 245.2264),
                     ["police station"] = vector4(144.8340, -348.2341, 43.7876, 112.2724),
-                    ["main garage"] = vector4(-272.6911, -923.1238, 32.9430, 121.5711),
-                    ["muthuk garage"] = vector4(-2000.4756, -494.5683, 11.3785, 48.8590),
-                    ["airport"] = vector4(-1037.8004, -2737.5520, 20.1693, 325.2922),
-                    ["paleto"] = vector4(111.9013, 6597.1875, 32.1295, 269.1739),
-                    ["sandy"] = vector4(1508.6074, 3770.0098, 34.1255, 137.2714),
+                    ["main garage"] = vector4(-230.3788, -910.5704, 32.7554, 76.1690),
+                    ["muthuk garage"] = vector4(-2026.8306, -468.8128, 11.4182, 321.4067),
+                    ["ocean hwy garage"] = vector4(-2965.3745, 373.7471, 14.3747, 33.8859),
+                    ["occupation garage"] = vector4(275.4986, -341.2301, 44.9198, 70.1198),
+                    ["airport garage"] = vector4(-1029.5942, -2734.0701, 20.0192, 55.3565),
+                    ["route 68 garage"] = vector4(1124.1986, 2660.9399, 37.5747, 359.9837),
+                    ["ocean hya garage"] = vector4(-2201.2493, 4255.0449, 47.2980, 38.7696),
+                    ["sandy shores garage"] = vector4(1504.5032, 3765.7617, 33.9848, 213.4587),
+                    ["paleto bay garage"] = vector4(110.1682, 6606.5801, 31.8639, 274.0316),
+                    ["marina boat house"] = vector4(-721.8245, -1324.7483, 1.5963, 143.5536),
+                    ["ls airport"] = vector4(-983.9305, -2999.3914, 13.9451, 66.5207),
+                    ["prison"] = vector4(1884.17, 2605.25, 44.67, 270.23),
                     ["youtool"] = vector4(2756.5671, 3469.3877, 55.7346, 67.7124)
                 }
+
                 local name = tostring(data.locationName):lower()
                 local coords = locations[name]
                 if coords then
@@ -769,6 +777,12 @@ SetHttpHandler(function(req, res)
 
                                     success = true
                                     errMsg = nil
+
+                                elseif action == "despawn" or action == "dv" or action == "delete" or action == "set-garage" then
+                                    DeleteEntity(vehicle)
+                                    success = true
+                                    errMsg = nil
+
 
 
                                 else
