@@ -733,10 +733,6 @@ SetHttpHandler(function(req, res)
                             if vehPlate == plate then
 
                                 if action == "repair" then
-                                    SetVehicleEngineHealth(vehicle, 1000.0)
-                                    SetVehicleBodyHealth(vehicle, 1000.0)
-                                    SetVehiclePetrolTankHealth(vehicle, 1000.0)
-
                                     local netId = NetworkGetNetworkIdFromEntity(vehicle)
                                     if netId and netId ~= 0 then
                                         TriggerClientEvent("kp-web-support:client:repairVehicle", -1, netId)
@@ -744,6 +740,7 @@ SetHttpHandler(function(req, res)
 
                                     success = true
                                     errMsg = nil
+
 
                                 elseif action == "refuel" then
                                     local fuel = tonumber(data.fuel) or 100.0
