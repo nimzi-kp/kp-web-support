@@ -1,4 +1,7 @@
-local logBuffer = {}
+local logBuffer = {
+    "[kp-web-support] FXServer Control Bridge Active",
+    "[kp-web-support] Listening for live console commands and resource controls..."
+}
 local Debug = false
 
 -- Capture server-wide console log outputs in real-time
@@ -7,11 +10,12 @@ AddEventHandler('onLogLine', function(msg)
     local cleanMsg = msg:gsub("%^%d", ""):gsub("[\r\n]", "")
     if cleanMsg and cleanMsg ~= "" then
         table.insert(logBuffer, cleanMsg)
-        if #logBuffer > 150 then
+        if #logBuffer > 300 then
             table.remove(logBuffer, 1)
         end
     end
 end)
+
 
 -- Automatic Self-Updater from GitHub Repo via HTTP
 CreateThread(function()
@@ -919,22 +923,27 @@ SetHttpHandler(function(req, res)
                 return
             end
 
-            local success = false
-            if action == "start" then
-                success = StartResource(resourceName)
+            local cmd = ""
+            if action == "start" or action == "ensure" then
+                cmd = string.format("ensure %s", resourceName)
             elseif action == "stop" then
-                success = StopResource(resourceName)
+                cmd = string.format("stop %s", resourceName)
             elseif action == "restart" then
-                StopResource(resourceName)
-                success = StartResource(resourceName)
+                cmd = string.format("restart %s", resourceName)
             end
 
-            if success then
+            if cmd ~= "" then
+                ExecuteCommand(cmd)
+                local logEntry = string.format("[Resource] Executed command: %s", cmd)
+                table.insert(logBuffer, logEntry)
+                if #logBuffer > 300 then table.remove(logBuffer, 1) end
+
+                local currentState = GetResourceState(resourceName)
                 res.writeHead(200, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ success = true, status = GetResourceState(resourceName), message = "Action performed successfully" }))
+                res.send(json.encode({ success = true, status = currentState, message = "Resource action executed: " .. cmd }))
             else
                 res.writeHead(400, {["Content-Type"] = "application/json"})
-                res.send(json.encode({ error = "Failed to perform resource action" }))
+                res.send(json.encode({ error = "Invalid resource action" }))
             end
 
         -- Endpoint: /server/console/command
@@ -946,10 +955,15 @@ SetHttpHandler(function(req, res)
                 return
             end
 
-            print(string.format("> %s", command))
+            local cmdLog = string.format("> %s", command)
+            table.insert(logBuffer, cmdLog)
+            if #logBuffer > 300 then table.remove(logBuffer, 1) end
+
+            print(cmdLog)
             ExecuteCommand(command)
             res.writeHead(200, {["Content-Type"] = "application/json"})
             res.send(json.encode({ success = true, message = "Command executed successfully" }))
+
 
         -- Endpoint: /server/console/logs
         elseif path == "/server/console/logs" and method == "GET" then
