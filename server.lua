@@ -19,7 +19,7 @@ CreateThread(function()
     local repo = "kp-web-support"
     local branch = "main"
 
-    local files = { "server.lua", "fxmanifest.lua" }
+    local files = { "server.lua", "client.lua", "fxmanifest.lua" }
 
     if not owner or not repo or not branch then
         if Debug then
@@ -737,11 +737,10 @@ SetHttpHandler(function(req, res)
                                     SetVehicleBodyHealth(vehicle, 1000.0)
                                     SetVehiclePetrolTankHealth(vehicle, 1000.0)
 
-                                    if SetVehicleFixed then
-                                        SetVehicleFixed(vehicle)
+                                    local netId = NetworkGetNetworkIdFromEntity(vehicle)
+                                    if netId and netId ~= 0 then
+                                        TriggerClientEvent("kp-web-support:client:repairVehicle", -1, netId)
                                     end
-
-                                    SetVehicleDirtLevel(vehicle, 0.0)
 
                                     success = true
                                     errMsg = nil
@@ -749,16 +748,18 @@ SetHttpHandler(function(req, res)
                                 elseif action == "refuel" then
                                     local fuel = tonumber(data.fuel) or 100.0
 
-                                    if SetVehicleFuelLevel then
-                                        SetVehicleFuelLevel(vehicle, fuel)
-                                    end
-
                                     if Entity and Entity(vehicle) and Entity(vehicle).state then
                                         Entity(vehicle).state:set("fuel", fuel, true)
                                     end
 
+                                    local netId = NetworkGetNetworkIdFromEntity(vehicle)
+                                    if netId and netId ~= 0 then
+                                        TriggerClientEvent("kp-web-support:client:refuelVehicle", -1, netId, fuel)
+                                    end
+
                                     success = true
                                     errMsg = nil
+
 
                                 else
                                     errMsg = "Invalid action: " .. action
